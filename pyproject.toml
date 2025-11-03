@@ -27,3 +27,6 @@ classifiers = [
 [project.scripts]
 # This creates the system-wide command
 ninjam-config-tool = "ninjam_config_tool.main:run"
+
+[tool.setuptools]
+package-data = {"ninjam_config_tool" = ["*.cfg"]}
