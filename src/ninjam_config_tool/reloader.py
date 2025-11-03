@@ -2,7 +2,15 @@
 import platform
 import subprocess
 import os
-from typing import Tuple
+from typing import Tuple, Optional
+
+import psutil
+
+
+class ProcessNotFoundError(Exception):
+    """Raised when the NINJAM server process cannot be found."""
+    pass
+
 
 class Reloader:
     """
@@ -11,9 +19,31 @@ class Reloader:
     
     def __init__(self):
         self.platform = platform.system().lower()
+        self.server_process_names = ["cninjamsrv", "ninjamsrv", "ninjamsrv.exe"]
 
 
-    def reload(self, pid_filepath: str) -> Tuple[str, str]:
+    def _find_server_pid(self) -> Optional[int]:
+        """
+        Finds the NINJAM server PID by iterating over running processes.
+        Uses psutil for cross-platform compatibility.
+        """
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                if proc.name() in self.server_process_names:
+                    # Found it!
+                    return proc.pid
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                # Process might have died, or we don't have permission
+                continue
+        
+        # If we get here, we didn't find it
+        raise ProcessNotFoundError(
+            "Could not find a running NINJAM server process "
+            f"(looked for: {', '.join(self.server_process_names)})."
+        )
+    
+
+    def reload(self) -> Tuple[str, str]:
         """
         Attempts to reload the server.
         
@@ -22,9 +52,9 @@ class Reloader:
         if self.platform == "windows":
             return self.reload_windows()
         elif self.platform == "linux":
-            return self.reload_linux(pid_filepath)
+            return self.reload_linux()
         elif self.platform == "darwin": # macOS
-            return self.reload_linux(pid_filepath) # SIGHUP works on macOS too
+            return self.reload_linux() # SIGHUP works on macOS too
         else:
             return ("Config Saved", 
                     f"Config was saved, but reload is not supported on '{self.platform}'.")
@@ -38,38 +68,14 @@ class Reloader:
                 "console and press the 'R' key.")
 
 
-    def reload_linux(self, pid_filepath: str) -> Tuple[str, str]:
+    def reload_linux(self) -> Tuple[str, str]:
         """Linux/Unix-specific reload using SIGHUP."""
-        if not pid_filepath or not pid_filepath.strip():
-            return ("Error: PID File",
-                    "Configuration was saved, but cannot reload.\n\n"
-                    "Please specify the path to your server's .pid file "
-                    "(set with 'SetPID' in your config).")
-
-        if not os.path.exists(pid_filepath):
-            return ("Error: PID File Not Found",
-                    f"Config saved, but PID file not found at:\n{pid_filepath}")
-
         try:
-            with open(pid_filepath, 'r') as f:
-                pid = f.read().strip()
+            pid = self._find_server_pid()
             
-            if not pid.isdigit():
-                return ("Error: Invalid PID", f"The file '{pid_filepath}' did not contain a valid PID.")
+            # Use pkexec for privileged signal sending.
+            cmd = ["pkexec", "kill", "-HUP", str(pid)]
             
-            # Check if process exists first
-            # os.kill(pid, 0) will raise an exception if the process doesn't exist
-            os.kill(int(pid), 0)
-
-        except (IOError, OSError) as e:
-            return ("Error: Process Not Found",
-                    f"Config saved, but could not read PID or find process.\n\n{e}")
-        
-        # Use pkexec for privileged signal sending.
-        # This will trigger a native password prompt.
-        cmd = ["pkexec", "kill", "-HUP", pid]
-        
-        try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)
             
             if result.returncode == 0:
@@ -80,7 +86,9 @@ class Reloader:
                 return ("Reload Failed",
                         "Config saved, but reload signal failed (user cancel?).\n\n"
                         f"Error: {result.stderr}")
-                
+
+        except ProcessNotFoundError as e:
+            return ("Error: Process Not Found", f"Config saved, but reload failed.\n\Type {e}")
         except FileNotFoundError:
             return ("Error: pkexec",
                     "Config saved, but `pkexec` was not found. "

@@ -33,8 +33,6 @@ class Application(tk.Tk):
             # Add other parameters you want to manage here
         }
         
-        self.pid_file_path = tk.StringVar(value="")
-
         # --- Component Initialization ---
         self.config_parser = ConfigParser()
         self.reloader = Reloader()
@@ -87,18 +85,9 @@ class Application(tk.Tk):
         ttk.Entry(settings_frame,
                   textvariable=self.config_vars["DefaultTopic"]).grid(row=3, column=1, sticky=tk.EW, padx=5)
 
-        # --- Reload/Action Frame ---
-        action_frame = ttk.LabelFrame(main_frame, text="Actions", padding=10)
-        action_frame.pack(fill=tk.X, pady=10)
-        action_frame.columnconfigure(1, weight=1)
-        
-        ttk.Label(action_frame, text="PID File Path (Linux):").grid(row=0, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(action_frame, 
-                  textvariable=self.pid_file_path).grid(row=0, column=1, sticky=tk.EW, padx=5)
-
         # --- Main Action Button ---
         apply_button = ttk.Button(main_frame, text="Save and Apply", command=self._on_save_and_apply)
-        apply_button.pack(fill=tk.X, side=tk.BOTTOM, pady=(5,0))
+        apply_button.pack(fill=tk.X, side=tk.BOTTOM, pady=(10,0))
 
 
     def _on_open(self):
@@ -179,8 +168,7 @@ class Application(tk.Tk):
 
         # Step 2: Trigger the reloader
         try:
-            pid_path = self.pid_file_path.get()
-            title, message = self.reloader.reload(pid_path)
+            title, message = self.reloader.reload()
             
             if "Error" in title:
                 messagebox.showerror(title, message)
