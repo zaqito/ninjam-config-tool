@@ -1,10 +1,12 @@
 # src/ninjam_config_tool/app.py
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from typing import Optional, Dict
+from tkinter.ttk import Notebook
+from typing import Optional, Dict, List, Any
 
 from .config_parser import ConfigParser
 from .reloader import Reloader
+
 
 class Application(tk.Tk):
     """
@@ -17,7 +19,7 @@ class Application(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("NINJAM Server Config Tool")
-        self.geometry("450x420")
+        self.geometry("500x550")
 
         # --- Application State ---
         self.current_file_path: Optional[str] = None
@@ -36,6 +38,10 @@ class Application(tk.Tk):
             "AllowHiddenUsers": tk.StringVar(value="no"),
         }
         
+        # --- State for list-based settings ---
+        self.user_list: List[Dict[str, str]] = []
+        self.acl_list: List[Dict[str, str]] = []
+
         # --- Component Initialization ---
         self.config_parser = ConfigParser()
         self.reloader = Reloader()
@@ -61,62 +67,75 @@ class Application(tk.Tk):
 
 
     def _create_widgets(self):
-        """Creates and lays out the main UI widgets."""
+        """Creates and lays out the main UI widgets using a Notebook."""
         main_frame = ttk.Frame(self, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # --- Server Settings Frame ---
-        settings_frame = ttk.LabelFrame(main_frame, text="Server Settings", padding=10)
-        settings_frame.pack(fill=tk.X)
+        # Create the Notebook (tab container)
+        notebook = Notebook(main_frame)
+        notebook.pack(fill=tk.BOTH, expand=True)
+
+        # --- Tab 1: General Settings ---
+        tab_general = ttk.Frame(notebook, padding=10)
+        notebook.add(tab_general, text="General Settings")
         
-        # Using a grid for clean label-entry alignment
+        # Move existing frames into the 'tab_general' frame
+        settings_frame = ttk.LabelFrame(tab_general, text="Server Settings", padding=10)
+        settings_frame.pack(fill=tk.X)
         settings_frame.columnconfigure(1, weight=1)
 
         ttk.Label(settings_frame, text="Max Users:").grid(row=0, column=0, sticky=tk.W, pady=2)
         ttk.Spinbox(settings_frame, from_=1, to=100,
                     textvariable=self.config_vars["MaxUsers"]).grid(row=0, column=1, sticky=tk.EW, padx=5)
-
+        
+        # ... (rest of the settings widgets: Port, BPM, Topic) ...
         ttk.Label(settings_frame, text="Port:").grid(row=1, column=0, sticky=tk.W, pady=2)
         ttk.Spinbox(settings_frame, from_=1024, to=65535,
                     textvariable=self.config_vars["Port"]).grid(row=1, column=1, sticky=tk.EW, padx=5)
-
         ttk.Label(settings_frame, text="Default BPM:").grid(row=2, column=0, sticky=tk.W, pady=2)
         ttk.Spinbox(settings_frame, from_=20, to=400,
                     textvariable=self.config_vars["DefaultBPM"]).grid(row=2, column=1, sticky=tk.EW, padx=5)
-        
         ttk.Label(settings_frame, text="Default Topic:").grid(row=3, column=0, sticky=tk.W, pady=2)
         ttk.Entry(settings_frame,
                   textvariable=self.config_vars["DefaultTopic"]).grid(row=3, column=1, sticky=tk.EW, padx=5)
 
-        # --- NEW: User Permissions Frame ---
-        perms_frame = ttk.LabelFrame(main_frame, text="User Permissions", padding=10)
+
+        perms_frame = ttk.LabelFrame(tab_general, text="User Permissions", padding=10)
         perms_frame.pack(fill=tk.X, pady=10)
         
         ttk.Checkbutton(
             perms_frame, 
             text="Allow Anonymous Users", 
             variable=self.config_vars["AnonymousUsers"],
-            onvalue="yes", 
-            offvalue="no"
+            onvalue="yes", offvalue="no"
         ).pack(anchor=tk.W)
-
+        
+        # ... (rest of the Checkbutton widgets) ...
         ttk.Checkbutton(
             perms_frame, 
             text="Allow Anonymous Users to Chat", 
             variable=self.config_vars["AnonymousUsersCanChat"],
-            onvalue="yes", 
-            offvalue="no"
+            onvalue="yes", offvalue="no"
         ).pack(anchor=tk.W)
-
         ttk.Checkbutton(
             perms_frame, 
             text="Allow Hidden Users (no channels)", 
             variable=self.config_vars["AllowHiddenUsers"],
-            onvalue="yes", 
-            offvalue="no"
+            onvalue="yes", offvalue="no"
         ).pack(anchor=tk.W)
 
+        # --- Tab 2: User Accounts ---
+        tab_users = ttk.Frame(notebook, padding=10)
+        notebook.add(tab_users, text="User Accounts")
+        ttk.Label(tab_users, text="User management UI will go here.").pack(pady=20)
+
+        # --- Tab 3: Access Control (ACL) ---
+        tab_acls = ttk.Frame(notebook, padding=10)
+        notebook.add(tab_acls, text="Access Control (ACL)")
+        ttk.Label(tab_acls, text="ACL management UI will go here.").pack(pady=20)
+
         # --- Main Action Button ---
+        # Note: This is packed into 'main_frame', *outside* the notebook
         apply_button = ttk.Button(main_frame, text="Save and Apply", command=self._on_save_and_apply)
         apply_button.pack(fill=tk.X, side=tk.BOTTOM, pady=(10,0))
 
@@ -135,11 +154,17 @@ class Application(tk.Tk):
             
             # Populate the UI from the file
             for key, var in self.config_vars.items():
-                if key in config_data:
+                if key in config_data['settings']:
                     try:
-                        var.set(config_data[key])
+                        var.set(config_data['settings'][key])
                     except tk.TclError as e:
-                        print(f"Warning: Could not set '{key}' to '{config_data[key]}'. Error: {e}")
+                        print(f"Warning: Could not set '{key}' to '{config_data['settings'][key]}'. Error: {e}")
+            
+            # cPopulate list settings
+            self.user_list = config_data.get('users', [])
+            self.acl_list = config_data.get('acls', [])
+
+            # TODO: Update the Treeview widgets once they exist
             
             self.current_file_path = filepath
             self.title(f"NINJAM Config Tool - {filepath}")
@@ -176,10 +201,22 @@ class Application(tk.Tk):
         Returns True on success.
         """
         try:
-            # Get current values from all tk.Variables
-            data_from_ui = {key: var.get() for key, var in self.config_vars.items()}
+            # 1. Get simple settings from tk.Variables
+            settings_from_ui = {key: var.get() for key, var in self.config_vars.items()}
             
-            self.config_parser.write(filepath, data_from_ui, template=template)
+            # 2. Get list data (TODO: This data will come from the Treeviews)
+            # For now, we just write back what we read
+            users_from_ui = self.user_list
+            acls_from_ui = self.acl_list
+            
+            # 3. Call the modified write method
+            self.config_parser.write(
+                filepath, 
+                settings_data=settings_from_ui,
+                user_list=users_from_ui,
+                acl_list=acls_from_ui,
+                template=template
+            )
             
             self.current_file_path = filepath
             self.title(f"NINJAM Config Tool - {filepath}")
