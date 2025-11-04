@@ -17,20 +17,23 @@ class Application(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("NINJAM Server Config Tool")
-        self.geometry("450x350")
+        self.geometry("450x420")
 
         # --- Application State ---
         self.current_file_path: Optional[str] = None
         
-        # We use Tkinter's variable classes to auto-update the UI.
-        # This is the core of the state management.
         self.config_vars: Dict[str, tk.Variable] = {
+            # --- Basic Settings ---
             "MaxUsers": tk.IntVar(value=10),
-            "DefaultTopic": tk.StringVar(value=""),
+            "DefaultTopic": tk.StringVar(value="replace by your topic"),
             "DefaultBPM": tk.DoubleVar(value=120.0),
             "DefaultBPI": tk.IntVar(value=16),
-            "Port": tk.IntVar(value=2049)
-            # Add other parameters you want to manage here
+            "Port": tk.IntVar(value=2049),
+            
+            # --- User Settings (yes/no) ---
+            "AnonymousUsers": tk.StringVar(value="yes"),
+            "AnonymousUsersCanChat": tk.StringVar(value="yes"),
+            "AllowHiddenUsers": tk.StringVar(value="no"),
         }
         
         # --- Component Initialization ---
@@ -84,6 +87,34 @@ class Application(tk.Tk):
         ttk.Label(settings_frame, text="Default Topic:").grid(row=3, column=0, sticky=tk.W, pady=2)
         ttk.Entry(settings_frame,
                   textvariable=self.config_vars["DefaultTopic"]).grid(row=3, column=1, sticky=tk.EW, padx=5)
+
+        # --- NEW: User Permissions Frame ---
+        perms_frame = ttk.LabelFrame(main_frame, text="User Permissions", padding=10)
+        perms_frame.pack(fill=tk.X, pady=10)
+        
+        ttk.Checkbutton(
+            perms_frame, 
+            text="Allow Anonymous Users", 
+            variable=self.config_vars["AnonymousUsers"],
+            onvalue="yes", 
+            offvalue="no"
+        ).pack(anchor=tk.W)
+
+        ttk.Checkbutton(
+            perms_frame, 
+            text="Allow Anonymous Users to Chat", 
+            variable=self.config_vars["AnonymousUsersCanChat"],
+            onvalue="yes", 
+            offvalue="no"
+        ).pack(anchor=tk.W)
+
+        ttk.Checkbutton(
+            perms_frame, 
+            text="Allow Hidden Users (no channels)", 
+            variable=self.config_vars["AllowHiddenUsers"],
+            onvalue="yes", 
+            offvalue="no"
+        ).pack(anchor=tk.W)
 
         # --- Main Action Button ---
         apply_button = ttk.Button(main_frame, text="Save and Apply", command=self._on_save_and_apply)
