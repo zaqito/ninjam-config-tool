@@ -7,6 +7,9 @@ from typing import Optional, Dict, List, Any
 from .config_parser import ConfigParser
 from .reloader import Reloader
 
+from .ui_components import ListEditorFrame
+from .dialogs import UserDialog, AclDialog
+
 
 class Application(tk.Tk):
     """
@@ -41,6 +44,10 @@ class Application(tk.Tk):
         # --- State for list-based settings ---
         self.user_list: List[Dict[str, str]] = []
         self.acl_list: List[Dict[str, str]] = []
+
+        # --- References to editor frames ---
+        self.user_editor: Optional[ListEditorFrame] = None
+        self.acl_editor: Optional[ListEditorFrame] = None
 
         # --- Component Initialization ---
         self.config_parser = ConfigParser()
@@ -110,13 +117,13 @@ class Application(tk.Tk):
             onvalue="yes", offvalue="no"
         ).pack(anchor=tk.W)
         
-        # ... (rest of the Checkbutton widgets) ...
         ttk.Checkbutton(
             perms_frame, 
             text="Allow Anonymous Users to Chat", 
             variable=self.config_vars["AnonymousUsersCanChat"],
             onvalue="yes", offvalue="no"
         ).pack(anchor=tk.W)
+
         ttk.Checkbutton(
             perms_frame, 
             text="Allow Hidden Users (no channels)", 
@@ -127,15 +134,28 @@ class Application(tk.Tk):
         # --- Tab 2: User Accounts ---
         tab_users = ttk.Frame(notebook, padding=10)
         notebook.add(tab_users, text="User Accounts")
-        ttk.Label(tab_users, text="User management UI will go here.").pack(pady=20)
+        
+        self.user_editor = ListEditorFrame(
+            tab_users,
+            columns={"username": 120, "password": 120, "permissions": 100},
+            data_list=self.user_list,
+            dialog_class=UserDialog
+        )
+        self.user_editor.pack(fill=tk.BOTH, expand=True)
 
         # --- Tab 3: Access Control (ACL) ---
         tab_acls = ttk.Frame(notebook, padding=10)
         notebook.add(tab_acls, text="Access Control (ACL)")
-        ttk.Label(tab_acls, text="ACL management UI will go here.").pack(pady=20)
+        
+        self.acl_editor = ListEditorFrame(
+            tab_acls,
+            columns={"mask": 200, "action": 80},
+            data_list=self.acl_list,
+            dialog_class=AclDialog
+        )
+        self.acl_editor.pack(fill=tk.BOTH, expand=True)
 
         # --- Main Action Button ---
-        # Note: This is packed into 'main_frame', *outside* the notebook
         apply_button = ttk.Button(main_frame, text="Save and Apply", command=self._on_save_and_apply)
         apply_button.pack(fill=tk.X, side=tk.BOTTOM, pady=(10,0))
 
@@ -160,11 +180,17 @@ class Application(tk.Tk):
                     except tk.TclError as e:
                         print(f"Warning: Could not set '{key}' to '{config_data['settings'][key]}'. Error: {e}")
             
-            # cPopulate list settings
-            self.user_list = config_data.get('users', [])
-            self.acl_list = config_data.get('acls', [])
+            # Populate list settings
+            self.user_list.clear()
+            self.acl_list.clear()
+            self.user_list.extend(config_data.get('users', []))
+            self.acl_list.extend(config_data.get('acls', []))
 
-            # TODO: Update the Treeview widgets once they exist
+            # Refresh the UI
+            if self.user_editor:
+                self.user_editor.refresh_tree()
+            if self.acl_editor:
+                self.acl_editor.refresh_tree()
             
             self.current_file_path = filepath
             self.title(f"NINJAM Config Tool - {filepath}")
@@ -201,15 +227,13 @@ class Application(tk.Tk):
         Returns True on success.
         """
         try:
-            # 1. Get simple settings from tk.Variables
+            # Get simple settings from tk.Variables
             settings_from_ui = {key: var.get() for key, var in self.config_vars.items()}
             
-            # 2. Get list data (TODO: This data will come from the Treeviews)
-            # For now, we just write back what we read
             users_from_ui = self.user_list
             acls_from_ui = self.acl_list
             
-            # 3. Call the modified write method
+            # Call the modified write method
             self.config_parser.write(
                 filepath, 
                 settings_data=settings_from_ui,
@@ -229,12 +253,12 @@ class Application(tk.Tk):
 
     def _on_save_and_apply(self):
         """Handles the 'Save and Apply' button click."""
-        # Step 1: Save the file
+        # Save the file
         if not self._on_save():
             messagebox.showwarning("Save Failed", "Configuration was not saved. Aborting apply.")
             return
 
-        # Step 2: Trigger the reloader
+        # Trigger the reloader
         try:
             title, message = self.reloader.reload()
             
