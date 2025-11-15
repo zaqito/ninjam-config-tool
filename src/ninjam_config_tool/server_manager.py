@@ -12,7 +12,7 @@ class ProcessNotFoundError(Exception):
     pass
 
 
-class Reloader:
+class ServerManager:
     """
     Handles the platform-specific logic for reloading the ninjamsrv.
     """

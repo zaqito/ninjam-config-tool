@@ -5,7 +5,7 @@ from tkinter.ttk import Notebook
 from typing import Optional, Dict, List, Any
 
 from .config_parser import ConfigParser
-from .reloader import Reloader
+from .server_manager import ServerManager
 
 from .ui_components import ListEditorFrame
 from .dialogs import UserDialog, AclDialog
@@ -51,7 +51,7 @@ class Application(tk.Tk):
 
         # --- Component Initialization ---
         self.config_parser = ConfigParser()
-        self.reloader = Reloader()
+        self.server_manager = ServerManager()
 
         # --- UI Construction ---
         self._create_menu()
@@ -260,7 +260,7 @@ class Application(tk.Tk):
 
         # Trigger the reloader
         try:
-            title, message = self.reloader.reload()
+            title, message = self.server_manager.reload()
             
             if "Error" in title:
                 messagebox.showerror(title, message)
